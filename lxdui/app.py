@@ -47,8 +47,8 @@ app = Flask(__name__)
 #can be dynamically generated each time ...
 #app.secret_key = str(uuid.uuid4()).replace('-','')
 app.secret_key = 's3cr3tk3y1'
-print "="*32
-print "APP_SECRET_KEY = {}".format(app.secret_key)
+print("="*32)
+print("APP_SECRET_KEY = {}".format(app.secret_key))
 
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 
@@ -68,13 +68,15 @@ with open(config_file, 'r') as f:
     app.config['LXDUI_USERNAME'] = credentials['username']
     app.config['LXDUI_PASSWORD'] = credentials['password']
 
+
 def connect():
     try:
         conn = Client()
         conn.authenticate('123123aa')
         return { "error" : False, "conn" : conn}
-    except Exception, e:
-        return { "error" : True, "message" : "We have trouble connecting to the LXD daemon. LXC/LXD might not be installed or either daemon not initialised up properly !"}
+    except Exception as e:
+        return { "error" : True, "message" : "We have trouble connecting to the LXD daemon. LXC/LXD might not be installed or either daemon not initialised up properly !\n{}".format(e)}
+
 
 def list_of_local_images():
     client = connect()
@@ -105,7 +107,7 @@ def get_lxc_version():
     try:
         p = subprocess.Popen(["lxc" , "--version"], stdout = subprocess.PIPE, stderr=subprocess.PIPE)
         output_rez,err_rez = p.communicate()
-    except Exception,e:
+    except Exception as e:
         return { "LXC_installed" : False }
     ver = float((output_rez).strip())
     color = "warning"
@@ -144,7 +146,7 @@ def test():
             RAM_MEM = container.state().memory
             CPU_USG = container.state().cpu
             #rectify lo
-            if NETWORK.has_key('lo'):
+            if 'lo' in NETWORK:
                 del NETWORK['lo']
         
         MAC_HWADDR_KEY = "volatile.eth0.hwaddr"
@@ -165,7 +167,7 @@ def test():
                         "release" : str(container.expanded_config["image.release"]).capitalize(),
                         "architecture" : str(container.expanded_config["image.architecture"])}
 
-        if container.expanded_config.has_key("image.version"):
+        if "image.version" in container.expanded_config:
             OS_METADATA.update({"version" : str(container.expanded_config["version"])})
         
         CONTAINER_RESOURCE_CONSTRAINS = []
@@ -190,12 +192,12 @@ def test():
         response = Response({"error" : False, "result" : rez})
         return response.success()
 
-    except Exception, e:
+    except Exception as e:
         return str({"error": True, "error_message": str(e).upper() })
 
 @app.route('/')
 def home():
-    if session.has_key('user_id'):
+    if 'user_id' in session:
         if session['user_id'] == app.config['LXDUI_USERNAME']:
             return redirect(url_for("containers"))
             
@@ -233,7 +235,7 @@ def logout():
 @app.route('/containers')
 @flask_login.login_required
 def containers():
-    return render_template("containers.html", auto_refresh = request.args.has_key("auto_refresh"), currentpage = "containers")
+    return render_template("containers.html", auto_refresh = "auto_refresh" in request.args, currentpage = "containers")
 
 @app.route('/containers-list', methods=['POST'])
 @flask_login.login_required
@@ -313,7 +315,7 @@ def check_cached_image():
         data = {'success': True, 'image_exists' : True }
         response = Response(data)
         return response.success()
-    except Exception, e:
+    except Exception as e:
         data = {'success': True, 'image_exists' : False }
         response = Response(data)
         return response.success()
@@ -349,7 +351,7 @@ def start_container():
     
     try:
         container.start(wait = True)
-    except Exception, e:
+    except Exception as e:
          response = Response({'success': False, 'message':' Container <{}> : '.format(containerName) + str(e) })
          return response.success()
 
@@ -416,7 +418,7 @@ def network_post():
         flash( str(executed['spitout']) ,'success')
         #restart all containers
         main_config = bridge_net.get_lxd_main_bridge_config()
-        if main_config.has_key('used_by'):
+        if 'used_by' in main_config:
             if len(main_config['used_by']) > 0:
                 #======================
                 client = connect()
@@ -427,7 +429,7 @@ def network_post():
                 #======================
                 for cnt_name in main_config['used_by']:
                     container = client.containers.get(cnt_name)
-                    print ">> Restarting container <{}> !".format(cnt_name)
+                    print(">> Restarting container <{}> !".format(cnt_name))
                     container.restart()
 
     return redirect(url_for('network_get'))
@@ -450,7 +452,7 @@ def delete_container():
     try:
         containerName = request.form['containerName']
         container = client.containers.get(containerName)
-    except Exception, e:
+    except Exception as e:
         data = {'success': False, 'payload': 'There is no such container by name <{}> !'.format(containerName)}
         response = Response(data)
         return response.bad_request()
@@ -503,13 +505,13 @@ def launch_container():
     local_cached_OS = None
     try:
         local_cached_OS = client.images.get_by_alias( img_alias )
-    except Exception, e:
+    except Exception as e:
         if str(e).lower() == "not found" :
             #>>START download it locally
             try:
                 linux_repo = Client(endpoint='https://images.linuxcontainers.org')
-            except Exception, e:
-                print str(e)
+            except Exception as e:
+                print(str(e))
                 #NO INTERNET
                 data = {'success': False,
                         'payload': "NO INTERNET CONNECTION to download the LXC Image <{}> !".format( img_alias ),
@@ -519,7 +521,7 @@ def launch_container():
 
             try:
                 selected_image = linux_repo.images.get_by_alias( img_alias )
-            except Exception, e:
+            except Exception as e:
                 data = {'success': False,
                         'payload': "There is no LXC IMAGE from the LXC Linux official repo, identified by this alias <{0}> !".format( img_alias ),
                         'move_next' : False }
@@ -535,7 +537,7 @@ def launch_container():
     new_container = client.containers.create( config, wait=True)
     try:
         new_container.start(wait = True)
-    except Exception, e:
+    except Exception as e:
          response = Response({'success': False, 'payload':' Container <{}> : '.format(containerName) + str(e), 'move_next' : True})
          return response.success()
 
@@ -599,7 +601,7 @@ def delete_local_image():
 def retrieve_image_size(alias_term):
     #https://us.images.linuxcontainers.org/1.0/images/aliases/alpine/3.3/amd64/default
     url_request_img = 'https://us.images.linuxcontainers.org/1.0/images/aliases/{0}'.format(alias_term)
-    print url_request_img
+    print(url_request_img)
     r = requests.get(url_request_img)
     image_fingerprint_target = r.json()["metadata"]["target"]
 
@@ -687,7 +689,7 @@ def container_ip(container_name):
         response = Response(data)
         return response.success()
 
-    except Exception, e:
+    except Exception as e:
         data = { "error": True,  "container_name" : container_name , "message": str(e).upper() }
         response = Response(data)
         return response.success()
@@ -719,7 +721,7 @@ def container_details(container_name=None):
             RAM_MEM = container.state().memory
             CPU_USG = container.state().cpu
             #rectify lo
-            if NETWORK.has_key('lo'):
+            if 'lo' in NETWORK:
                 del NETWORK['lo']
         
         MAC_HWADDR_KEY = "volatile.eth0.hwaddr"
@@ -766,9 +768,9 @@ def container_details(container_name=None):
                     'resource_constrains' : CONTAINER_RESOURCE_CONSTRAINS}
 
         data_rez = {"error" : False, "result" : rez}
-        return render_template('container-details.html', auto_refresh = request.args.has_key("auto_refresh"), data_rez = data_rez, currentpage = "container / "+container_name )
+        return render_template('container-details.html', auto_refresh = "auto_refresh" in request.args, data_rez = data_rez, currentpage = "container / "+container_name )
        
-    except Exception, e:
+    except Exception as e:
         data_rez = {"error": True, "message": str(e).upper(), "c_name" : container_name}
         return render_template('container-details.html', data_rez = data_rez, currentpage = "container / "+container_name)
 
@@ -817,13 +819,13 @@ def main():
     #password manipulation
     app.config['LXDUI_PORT'] = args.port
     
-    print "="*32
-    print "Starting lxdui v{1} on port {0}".format(app.config['LXDUI_PORT'], LXDUI_VERSION)
-    print "-"*32
-    print "DEBUG feature: {}".format(debug_txt)
-    print "-"*32
-    print "Credentials: {0}:{1}> !".format(app.config['LXDUI_USERNAME'], app.config['LXDUI_PASSWORD'])
-    print "="*32
+    print ("="*32)
+    print ("Starting lxdui v{1} on port {0}".format(app.config['LXDUI_PORT'], LXDUI_VERSION))
+    print ("-"*32)
+    print ("DEBUG feature: {}".format(debug_txt))
+    print ("-"*32)
+    print ("Credentials: {0}:{1}> !".format(app.config['LXDUI_USERNAME'], app.config['LXDUI_PASSWORD']))
+    print ("="*32)
 
     app.run(host = server_target, port = args.port, debug = args.debug, threaded = True)
 
