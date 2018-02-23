@@ -42,11 +42,14 @@ import flask_login
 from helpers.login_manage import login_manager
 from helpers.login_manage import User
 
+from lxdui.helpers.connector import Connect
+from conf.local import SECRET_KEY, LXDUI_USERNAME, LXDUI_PASSWORD, LXDUI_PORT
+
 app = Flask(__name__)
 
 #can be dynamically generated each time ...
 #app.secret_key = str(uuid.uuid4()).replace('-','')
-app.secret_key = 's3cr3tk3y1'
+app.secret_key = SECRET_KEY
 print("="*32)
 print("APP_SECRET_KEY = {}".format(app.secret_key))
 
@@ -56,9 +59,9 @@ my_path = os.path.abspath(os.path.dirname(__file__))
 config_file = os.path.join(my_path, "conf/config.json")
 remote_images_file = os.path.join(my_path, "conf/data.json")
 #DEFAULT
-app.config['LXDUI_USERNAME'] = "admin"
-app.config['LXDUI_PASSWORD'] = "admin"
-app.config['LXDUI_PORT'] = 5000
+app.config['LXDUI_USERNAME'] = LXDUI_USERNAME
+app.config['LXDUI_PASSWORD'] = LXDUI_PASSWORD
+app.config['LXDUI_PORT'] = LXDUI_PORT
 
 #LOGIN MANAGER - FLASK login_manage
 login_manager.init_app(app)
@@ -68,18 +71,11 @@ with open(config_file, 'r') as f:
     app.config['LXDUI_USERNAME'] = credentials['username']
     app.config['LXDUI_PASSWORD'] = credentials['password']
 
-
-def connect():
-    try:
-        conn = Client()
-        conn.authenticate('123123aa')
-        return { "error" : False, "conn" : conn}
-    except Exception as e:
-        return { "error" : True, "message" : "We have trouble connecting to the LXD daemon. LXC/LXD might not be installed or either daemon not initialised up properly !\n{}".format(e)}
+connector = Connect()
 
 
 def list_of_local_images():
-    client = connect()
+    client = connector.remote()
     if client['error']:
         return { "error" : True, "message" : "We have trouble connecting to the LXD daemon. LXC/LXD might not be installed or either daemon not initialised up properly !"}
     client = client['conn']
@@ -123,7 +119,7 @@ def get_lxc_version():
 
 @app.route('/test')
 def test():
-    client = connect()
+    client = connector.remote()
     if client['error']:
         response = Response({'success': False, 'payload': client['message']})
         return response.success()
@@ -240,7 +236,7 @@ def containers():
 @app.route('/containers-list', methods=['POST'])
 @flask_login.login_required
 def containers_list():
-    client = connect()
+    client = connector.remote()
     if client['error']:
         response = Response({'success': False, 'payload': client['message']})
         return response.success()
@@ -303,7 +299,7 @@ def images():
 def check_cached_image():
     img_alias = request.form['img_alias']
     #------------------------------------
-    client = connect()
+    client = connector.remote()
     if client['error']:
         response = Response(client)
         return response.bad_request()
@@ -323,7 +319,7 @@ def check_cached_image():
 @app.route('/stop', methods=['POST'])
 @flask_login.login_required
 def stop_container():
-    client = connect()
+    client = connector.remote()
     if client['error']:
         response = Response(client)
         return response.bad_request()
@@ -339,7 +335,7 @@ def stop_container():
 @app.route('/start', methods=['POST'])
 @flask_login.login_required
 def start_container():
-    client = connect()
+    client = connector.remote()
     if client['error']:
         response = Response(client)
         return response.bad_request()
@@ -373,7 +369,7 @@ def start_container():
 @app.route('/restart', methods=['POST'])
 @flask_login.login_required
 def restart():
-    client = connect()
+    client = connector.remote()
     if client['error']:
         response = Response(client)
         return response.bad_request()
@@ -421,7 +417,7 @@ def network_post():
         if 'used_by' in main_config:
             if len(main_config['used_by']) > 0:
                 #======================
-                client = connect()
+                client = connector.remote()
                 if client['error']:
                     response = Response(client)
                     return response.bad_request()
@@ -441,7 +437,7 @@ def network_post():
 @app.route('/delete', methods=['POST'])
 @flask_login.login_required
 def delete_container():
-    client = connect()
+    client = connector.remote()
     if client['error']:
         response = Response(client)
         return response.bad_request()
@@ -486,7 +482,7 @@ def launch_container():
     #=============
 
     
-    client = connect()
+    client = connector.remote()
     if client['error']:
         response = Response(client)
         return response.bad_request()
@@ -578,7 +574,7 @@ def local_images():
 @app.route('/delete-image', methods=['POST'])
 @flask_login.login_required
 def delete_local_image():
-    client = connect()
+    client = connector.remote()
     if client['error']:
         response = Response(client)
         return response.bad_request()
@@ -658,7 +654,7 @@ def update_remote_images():
 @app.route('/container-ip/<container_name>', methods=['GET'])
 @flask_login.login_required
 def container_ip(container_name):
-    client = connect()
+    client = connector.remote()
     if client['error']:
         response = Response(client)
         return response.bad_request()
@@ -698,7 +694,7 @@ def container_ip(container_name):
 @app.route('/container/<container_name>', methods=['GET'])
 @flask_login.login_required
 def container_details(container_name=None):
-    client = connect()
+    client = connector.remote()
     if client['error']:
         response = Response(client)
         return response.bad_request()
